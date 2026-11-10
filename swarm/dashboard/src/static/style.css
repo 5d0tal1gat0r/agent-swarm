@@ -771,7 +771,7 @@ dialog::backdrop { background: rgb(0 0 0 / 60%); }
 .cockpit-workspace-head { min-height: 82px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 15px 22px; border-bottom: 1px solid #29292d; }
 .cockpit-workspace-head p { margin-bottom: 0; }
 .task-focus-wrap { padding: 13px 22px 0; }
-.task-focus { padding: 13px 14px 12px; border: 1px solid #2f3946; border-radius: 6px; background: linear-gradient(135deg, #151b22); }
+.task-focus { padding: 13px 14px 12px; border: 1px solid #2f3946; border-radius: 6px; background: linear-gradient(135deg, #151b22, #111317); }
 .task-focus-head, .task-focus-grid, .task-budget > div, .task-agents .stream-head, .audit-item-head, .audit-drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .task-focus-head h3 { margin: 0; color: #e5e7eb; font: 600 12px var(--mono); overflow-wrap: anywhere; }
 .task-focus-head .eyebrow { margin: 0 0 4px; }
