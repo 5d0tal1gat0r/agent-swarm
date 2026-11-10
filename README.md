@@ -15,6 +15,22 @@ talk to each other over a shared MCP message bus.
 > edges, and read [`swarm/ARCHITECTURE.md`](swarm/ARCHITECTURE.md) before you
 > rely on any behaviour.
 
+## Screenshots
+
+The images below use made-up data.
+
+**Control room:** what is moving, queued or stuck, and which manager runs what.
+
+![Control room](assets/screenshots/control-room.png)
+
+**Graph:** who works on what. Click a node to see what was done, by whom, what it affects, how long it took and what it cost.
+
+![Graph with a task card open](assets/screenshots/graph.png)
+
+**Chat:** work talk next to the work. Task, epic and pull request references become links.
+
+![Chat](assets/screenshots/chat.png)
+
 ## How it fits together
 
 ```
