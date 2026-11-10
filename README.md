@@ -80,9 +80,9 @@ In short:
    # put the GitHub token in that env file, never in the repo or on a command line
    scripts/swarmctl doctor && scripts/swarmctl start orchestrator
    ```
-3. **Departments.** Edit `swarm/departments.yaml` (who owns which paths, and
-   which agent each department uses) and `swarm/policy.yaml` (budgets, review
-   rules).
+3. **Point it at your repository.** See
+   [Configure it for your repository](#configure-it-for-your-repository) below.
+   As shipped, the configuration makes the swarm work on its own code.
 4. **Managers, on members' machines.** The owner creates a token for each
    manager (`node orchestrator/bin/orchestrator.mjs token add <name> ...`).
    The member saves it to a file with mode 0600, runs
@@ -94,6 +94,25 @@ In short:
 
 Then open an epic, either from the dashboard or as a GitHub issue labelled
 `epic`, and watch the dashboard.
+
+## Configure it for your repository
+
+Three files decide what the swarm works on and how:
+
+- **`swarm/departments.yaml`**: set `repo` to your GitHub repository
+  (`owner/name`). Then replace the departments with your own areas. Each
+  department owns a set of paths (no path may belong to two departments), uses
+  one agent kind (`claude`, `codex`, `gemini` or `antigravity`), and runs a set
+  number of tasks at once. Paths that no department owns go to `platform`.
+- **`swarm/policy.yaml`**: limits and budgets (tokens and minutes per task
+  size, review rounds, merges per hour, pull request size), the allowed model
+  ids, and the review rules.
+- **`swarm/scripts/checks.sh`**: the checks a manager runs on every task
+  before it opens a pull request. Replace them with your project's own lint and
+  test commands.
+
+The orchestrator validates these files at start-up: overlapping department
+paths or a model id that is not on the allow-list stop it with an error.
 
 ## Connecting an agent to the bus
 
@@ -151,7 +170,14 @@ Run the tests with `cd swarm && npm ci --ignore-scripts && npm test`.
 
 ## License
 
-[PolyForm Shield 1.0.0](LICENSE). You may use, change and contribute to the
-software, but you may not use it to offer a product that competes with it.
-Contributions need a DCO sign-off; see [CONTRIBUTING.md](CONTRIBUTING.md).
-This summary is not legal advice; the license text is what counts.
+This project is **source-available** under the
+[PolyForm Shield License 1.0.0](LICENSE), not an open source license.
+
+- **You may** read, run, change and share the code, and use it in your own
+  projects and at work, including commercially.
+- **You may not** use it to build or sell a product or service that competes
+  with this one.
+
+Contributions are welcome. Each commit needs a DCO sign-off
+(`git commit -s`); see [CONTRIBUTING.md](CONTRIBUTING.md). This summary is not
+legal advice; the [license text](LICENSE) is what counts.

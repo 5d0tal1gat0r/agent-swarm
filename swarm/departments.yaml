@@ -1,9 +1,14 @@
 # Department ownership for the swarm. One department per path: overlapping
 # globs stop the orchestrator at start-up. Paths not owned by any department
 # go to `platform` and raise alert.unowned_path. Hosts are GitHub logins.
-# Solo setup: every department runs on one machine.
+#
+# As shipped, this file points the swarm at its own code (the swarm can develop
+# itself). For your project: set `repo` to the GitHub repository the swarm
+# works on, then replace the departments with your own areas (paths, the agent
+# each one uses, and how many tasks it runs at once). See README, "Configure it
+# for your repository".
 version: 1
-repo: example-org/agent-coordination
+repo: your-org/agent-swarm
 contracts:
   - "swarm/protocol/**"
 departments:

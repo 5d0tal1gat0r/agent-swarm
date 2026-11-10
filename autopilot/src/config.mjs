@@ -29,7 +29,7 @@ export const AGENTS = Object.keys(DEFAULT_MODELS);
 export const MODEL_KINDS = ['build', 'review', 'fix'];
 
 export const DEFAULTS = {
-  repo: 'example-org/agent-coordination',
+  repo: 'your-org/agent-swarm',
   agent: 'claude',
   busMcpUrl: 'http://127.0.0.1:3422/mcp',
   image: 'autopilot-sandbox:1',
