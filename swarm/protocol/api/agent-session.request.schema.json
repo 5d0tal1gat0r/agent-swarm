@@ -1,0 +1,11 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "api/agent-session.request",
+  "type": "object",
+  "required": ["operation", "session"],
+  "additionalProperties": false,
+  "properties": {
+    "operation": { "enum": ["start", "update", "finish"] },
+    "session": { "$ref": "../agent-session" }
+  }
+}

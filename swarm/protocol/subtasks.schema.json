@@ -1,0 +1,22 @@
+{
+  "type": "object",
+  "required": ["subtasks"],
+  "additionalProperties": false,
+  "properties": {
+    "subtasks": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 8,
+      "items": {
+        "type": "object",
+        "required": ["role", "paths", "prompt"],
+        "additionalProperties": false,
+        "properties": {
+          "role": { "type": "string", "pattern": "^[a-z][a-z0-9-]{0,30}$" },
+          "paths": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "type": "string", "minLength": 1, "maxLength": 300 } },
+          "prompt": { "type": "string", "minLength": 1, "maxLength": 4000 }
+        }
+      }
+    }
+  }
+}

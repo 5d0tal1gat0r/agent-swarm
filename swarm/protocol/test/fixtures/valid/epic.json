@@ -1,0 +1,11 @@
+{
+  "id": "E-0007",
+  "repo": "example-org/agent-coordination",
+  "title": "Queue inspection",
+  "body": "Expose the ordered queue of a department.",
+  "status": "open",
+  "source": "human",
+  "issue": null,
+  "createdAt": "2026-11-01T17:00:00.000Z",
+  "updatedAt": "2026-11-01T17:00:00.000Z"
+}

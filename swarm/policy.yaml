@@ -1,0 +1,41 @@
+# Swarm limits, budgets, model allow-list and review rules.
+# Model ids not listed here stop the daemon at start-up.
+version: 1
+limits:
+  leaseMinutes: 10
+  maxAttempts: 3
+  maxReviewRounds: 3
+  maxTaskSize: M
+  heartbeatStaleMinutes: 2
+  maxDeletedFiles: 10                    # a PR deleting more files goes to needs-human
+  maxMergesPerHour: 6                    # swarm-wide; the 7th reviewed task waits as submitted until the hour rolls
+  maxOpenPrsPerManager: 2                # a manager at the cap gets fixes but no new task
+  maxChangedLines: { S: 400, M: 1000 }   # additions + deletions per PR, by task size
+budgets:
+  S: { tokens: 500000, minutes: 30 }
+  M: { tokens: 1500000, minutes: 60 }
+models:
+  claude: ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"]
+  # Codex: owner pick. From ~/.codex/models_cache.json.
+  codex: ["gpt-5.6-luna"]
+  gemini: ["gemini-3-flash-preview", "gemini-2.5-flash-lite"]
+  # Antigravity CLI (agy), Gemini models through the Antigravity login. Ids from `agy models`.
+  antigravity: ["gemini-3.8-flash-low", "gemini-3.8-flash-medium", "gemini-3.8-flash-high"]
+reviewModel:
+  default: claude-sonnet-5-5
+  large: claude-opus-5-5
+# Model for the planner (epic to tasks). Must be on the claude allow-list.
+planModel: claude-opus-5-5
+humanReview:
+  - ".github/**"
+  - "swarm/policy.yaml"
+  - "swarm/deploy/**"
+  - "scripts/install-user-service.sh"
+# A PR that deletes any of these goes to needs-human, never auto-merge.
+protected:
+  - ".github/**"
+  - "swarm/policy.yaml"
+  - "swarm/departments.yaml"
+  - "AGENTS.md"
+  - "swarm/deploy/**"
+  - "**/package-lock.json"

@@ -1,0 +1,22 @@
+# Server dashboard on the server (ARCHITECTURE 47): read-only web UI for the swarm.
+# Env: ~/.config/swarm/dashboard.env (from deploy/env/dashboard.env.example). The dashboard
+# token lives in DASH_TOKEN_FILE (mode 0600), never in the env file or a flag.
+[Unit]
+Description=Swarm dashboard (tasks, managers, epics, alerts)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/swarm-app/repo/swarm
+EnvironmentFile=%h/.config/swarm/dashboard.env
+ExecStart=/usr/bin/env node dashboard/bin/dashboard.mjs
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+
+[Install]
+WantedBy=default.target

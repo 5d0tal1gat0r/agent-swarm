@@ -1,0 +1,18 @@
+# Swarm manager, user service on a member machine. Config: ~/.swarm/manager.json (mode 0600, written by `manager init`).
+# Env: ~/.config/swarm/manager.env, written by `swarmctl install manager` with a PATH line, because user services
+# do not get the login shell's PATH (node, gh, git, podman and the agent CLIs).
+[Unit]
+Description=Swarm manager (department daemon)
+After=network-online.target docker.service
+
+[Service]
+Type=simple
+WorkingDirectory=%h/swarm-app/repo/swarm
+EnvironmentFile=-%h/.config/swarm/manager.env
+ExecStart=/usr/bin/env node --disable-warning=ExperimentalWarning manager/bin/manager.mjs run
+Restart=on-failure
+RestartSec=10
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

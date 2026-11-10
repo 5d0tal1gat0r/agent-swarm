@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm graph</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/maint.js"></script>
+<script type="module" src="/graph.js"></script>
+</head>
+<body class="graph-page">
+<header class="bar">
+  <span class="mark mono" aria-hidden="true">[sw]</span>
+  <a class="scope" href="/">swarm</a> <span class="mut">/ graph</span>
+  <a class="act navlink" href="/agents">Agents</a>
+  <a class="act navlink" href="/chat">Chat</a>
+  <span id="g-status" class="fresh mut" role="status"></span>
+</header>
+<main class="graph-main">
+  <aside class="g-side panel" aria-label="Graph controls">
+    <h1>Graph</h1>
+    <p class="mut">Who talks where, what the agents remember, and how the work hangs together. Drag to pan, wheel to zoom, click a node.</p>
+    <label for="g-search">Find</label>
+    <input id="g-search" type="search" placeholder="agent, #channel, T-0002, key…" autocomplete="off">
+    <div class="g-actions" style="display:flex; gap:6px; margin-block:6px;">
+      <button id="g-fit" type="button" class="act" style="flex:1;">Fit view</button>
+      <button id="g-reset" type="button" class="act" style="flex:1;">Reset</button>
+    </div>
+    <label for="g-time">Time window</label>
+    <select id="g-time" style="width:100%; margin-bottom:8px;">
+      <option value="0">All time</option>
+      <option value="1">Last 1 hour</option>
+      <option value="6">Last 6 hours</option>
+      <option value="24" selected>Last 24 hours</option>
+      <option value="72">Last 3 days</option>
+    </select>
+    <fieldset id="g-types"><legend>Show</legend></fieldset>
+    <div id="g-legend" class="g-legend"></div>
+    <p class="mut g-hint">Click a node to read its details. Esc closes them.</p>
+  </aside>
+  <div class="g-right">
+    <section class="g-stage panel flush" aria-label="Swarm graph">
+      <canvas id="g-canvas" role="img" aria-label="Force-directed graph of agents, channels, memory and tasks"></canvas>
+      <pre id="g-fallback" class="ascii" hidden></pre>
+    </section>
+    <section id="g-detail" class="g-detail g-card panel" aria-label="Node details" aria-live="polite" hidden></section>
+  </div>
+</main>
+</body>
+</html>

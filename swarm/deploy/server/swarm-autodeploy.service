@@ -1,0 +1,16 @@
+# Server auto-deploy (ARCHITECTURE 76): a merge to main goes live on this machine without the owner.
+# swarmctl autodeploy fetches origin/main and, when it moved, runs the normal upgrade (backup, pull,
+# npm ci, restart, health check, rollback on failure). A sha that failed is not retried until main moves.
+# Env: ~/.config/swarm/autodeploy.env (PATH only, written by swarmctl install autodeploy). No secrets.
+[Unit]
+Description=Swarm auto-deploy (upgrade when origin/main moved)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/swarm-app/repo/swarm
+EnvironmentFile=-%h/.config/swarm/autodeploy.env
+ExecStart=%h/swarm-app/repo/swarm/scripts/swarmctl autodeploy
+TimeoutStartSec=15min
+NoNewPrivileges=yes
+PrivateTmp=yes

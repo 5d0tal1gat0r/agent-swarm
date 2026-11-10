@@ -1,0 +1,9 @@
+{
+  "type": "object",
+  "required": ["manager", "reason"],
+  "additionalProperties": false,
+  "properties": {
+    "manager": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "reason": { "type": "string", "minLength": 1, "maxLength": 500 }
+  }
+}

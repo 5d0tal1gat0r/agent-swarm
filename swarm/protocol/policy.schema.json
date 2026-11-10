@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "required": ["version", "limits", "budgets", "models", "reviewModel", "humanReview"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "limits": {
+      "type": "object",
+      "required": ["leaseMinutes", "maxAttempts", "maxReviewRounds", "maxTaskSize", "heartbeatStaleMinutes", "maxChangedLines"],
+      "additionalProperties": false,
+      "properties": {
+        "leaseMinutes": { "type": "integer", "minimum": 1, "maximum": 120 },
+        "maxAttempts": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "maxReviewRounds": { "type": "integer", "minimum": 1, "maximum": 10 },
+        "maxTaskSize": { "enum": ["S", "M"] },
+        "heartbeatStaleMinutes": { "type": "integer", "minimum": 1, "maximum": 60 },
+        "maxDeletedFiles": { "type": "integer", "minimum": 0 },
+        "maxMergesPerHour": { "type": "integer", "minimum": 1 },
+        "maxOpenPrsPerManager": { "type": "integer", "minimum": 1 },
+        "maxChangedLines": {
+          "type": "object",
+          "required": ["S", "M"],
+          "additionalProperties": false,
+          "properties": { "S": { "type": "integer", "minimum": 1 }, "M": { "type": "integer", "minimum": 1 } }
+        }
+      }
+    },
+    "budgets": {
+      "type": "object",
+      "required": ["S", "M"],
+      "additionalProperties": false,
+      "properties": {
+        "S": { "$ref": "#/$defs/budget" },
+        "M": { "$ref": "#/$defs/budget" }
+      }
+    },
+    "models": {
+      "type": "object",
+      "required": ["claude", "codex", "gemini"],
+      "additionalProperties": false,
+      "properties": {
+        "claude": { "$ref": "#/$defs/modelList" },
+        "codex": { "$ref": "#/$defs/modelList" },
+        "gemini": { "$ref": "#/$defs/modelList" },
+        "antigravity": { "$ref": "#/$defs/modelList" }
+      }
+    },
+    "reviewModel": {
+      "type": "object",
+      "required": ["default", "large"],
+      "additionalProperties": false,
+      "properties": {
+        "default": { "$ref": "#/$defs/modelId" },
+        "large": { "$ref": "#/$defs/modelId" }
+      }
+    },
+    "planModel": { "$ref": "#/$defs/modelId" },
+    "intake": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": { "intervalMinutes": { "type": "integer", "minimum": 1, "maximum": 1440 } }
+    },
+    "humanReview": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "protected": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  },
+  "$defs": {
+    "budget": {
+      "type": "object",
+      "required": ["tokens", "minutes"],
+      "additionalProperties": false,
+      "properties": {
+        "tokens": { "type": "integer", "minimum": 1000 },
+        "minutes": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "modelId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+    "modelList": { "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/modelId" } }
+  }
+}

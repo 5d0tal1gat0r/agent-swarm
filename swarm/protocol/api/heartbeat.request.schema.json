@@ -1,0 +1,12 @@
+{
+  "type": "object",
+  "required": ["manager", "agent", "version", "freeSlots", "running"],
+  "additionalProperties": false,
+  "properties": {
+    "manager": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "agent": { "enum": ["claude", "codex", "gemini", "antigravity"] },
+    "version": { "type": "string", "minLength": 1, "maxLength": 50 },
+    "freeSlots": { "type": "integer", "minimum": 0, "maximum": 10 },
+    "running": { "type": "array", "uniqueItems": true, "items": { "type": "string", "pattern": "^T-[0-9]{4,}$" } }
+  }
+}

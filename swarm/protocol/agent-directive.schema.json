@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent-directive",
+  "type": "object",
+  "required": ["id", "idempotencyKey", "target", "taskId", "kind", "payload", "actor", "reason", "status", "createdAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 8, "maxLength": 160 },
+    "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 200 },
+    "target": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "taskId": { "anyOf": [{ "type": "null" }, { "type": "string", "pattern": "^T-[0-9]{4,}$" }] },
+    "kind": { "enum": ["prompt", "context", "status", "pause", "resume", "replan", "interrupt", "stop"] },
+    "payload": { "type": "object", "maxProperties": 16 },
+    "actor": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "reason": { "type": ["string", "null"], "minLength": 3, "maxLength": 300 },
+    "status": { "enum": ["queued", "delivered", "applied", "failed", "cancelled"] },
+    "createdAt": { "$ref": "agent-context#/$defs/timestamp" },
+    "deliveredAt": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/timestamp" }] },
+    "appliedAt": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/timestamp" }] },
+    "result": { "type": ["string", "null"], "maxLength": 2000 },
+    "replacementSessionId": { "type": ["string", "null"], "maxLength": 160 }
+  }
+}

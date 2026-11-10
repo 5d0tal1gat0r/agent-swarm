@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "required": ["at", "tasks", "epics", "managers", "departments"],
+  "properties": {
+    "at": { "type": "string", "minLength": 1 },
+    "tasks": { "type": "array", "items": { "type": "object" } },
+    "epics": { "type": "array", "items": { "type": "object" } },
+    "managers": { "type": "array", "items": { "type": "object" } },
+    "metrics": { "type": "object" },
+    "paused": { "type": "boolean" },
+    "pauses": {
+      "type": "object",
+      "properties": {
+        "departments": { "type": "object" },
+        "managers": { "type": "object" }
+      }
+    },
+    "departments": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+    "departmentInfo": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "agent", "paths", "concurrency", "maxSubagents", "host"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "agent": { "enum": ["claude", "codex", "gemini", "antigravity"] },
+          "paths": { "type": "array", "items": { "type": "string" } },
+          "concurrency": { "type": "integer" },
+          "maxSubagents": { "type": "integer" },
+          "host": { "type": ["string", "null"] }
+        }
+      }
+    },
+    "service": { "type": ["object", "null"] }
+  }
+}

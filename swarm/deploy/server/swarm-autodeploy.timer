@@ -1,0 +1,10 @@
+# Every 5 minutes: a merged pull request is live within about 5 minutes.
+[Unit]
+Description=Swarm auto-deploy every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+
+[Install]
+WantedBy=timers.target

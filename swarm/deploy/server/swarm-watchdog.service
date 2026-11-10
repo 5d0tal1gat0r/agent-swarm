@@ -1,0 +1,16 @@
+# Server watchdog (ARCHITECTURE 42): checks the orchestrator on the orchestrator machine and posts to the
+# swarm bus channel when it goes down or comes back. No model calls, no GitHub token.
+# Env: ~/.config/swarm/watchdog.env (from deploy/env/watchdog.env.example).
+[Unit]
+Description=Swarm watchdog (orchestrator up/down to the swarm channel)
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/swarm-app/repo/swarm
+EnvironmentFile=%h/.config/swarm/watchdog.env
+ExecStart=/usr/bin/env node scripts/watchdog.mjs
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=%h/.swarm

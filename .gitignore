@@ -1,0 +1,39 @@
+source/
+runtime/
+.env
+
+.superpowers/
+node_modules/
+HANDOFF.md
+# Swarm runtime state and generated agent files (see swarm/ARCHITECTURE.md)
+.swarm/
+.claude/agents/
+
+# Secrets: env files (only .env.example is tracked), keys, tokens.
+# swarm/test/repo-secrets.test.mjs fails CI if one is tracked anyway.
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa
+id_ed25519
+id_ecdsa
+*.token
+# swarmctl export archives hold the GitHub token and manager token hashes.
+*.tgz
+swarm-move*
+# Local databases and logs (swarm state lives in ~/.swarm, never in the repo).
+*.db
+*.sqlite
+*.sqlite3
+*.log
+# Test and browser output.
+test-results/
+playwright-report/
+# Editor and OS files.
+.DS_Store
+.idea/
+.vscode/
+*.swp

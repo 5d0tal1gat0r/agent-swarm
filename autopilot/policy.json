@@ -1,0 +1,8 @@
+{
+  "owner": "owner",
+  "approvalsRequired": 0,
+  "maxOpenPrsPerMember": 1,
+  "maxOpenPrsTotal": 3,
+  "reviewTimeoutHours": 2,
+  "maxChangeRounds": 3
+}

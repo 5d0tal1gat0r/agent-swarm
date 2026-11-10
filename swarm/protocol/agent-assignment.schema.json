@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent-assignment",
+  "type": "object",
+  "required": ["id", "kind", "parentId", "manager", "taskId", "role", "status", "createdAt", "updatedAt"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "kind": { "enum": ["orchestrator", "manager", "subagent"] },
+    "parentId": { "type": ["string", "null"], "maxLength": 160 },
+    "manager": { "type": ["string", "null"], "maxLength": 100 },
+    "taskId": { "anyOf": [{ "type": "null" }, { "type": "string", "pattern": "^T-[0-9]{4,}$" }] },
+    "role": { "type": ["string", "null"], "maxLength": 31, "pattern": "^[a-z][a-z0-9-]{0,30}$" },
+    "goal": { "type": ["string", "null"], "minLength": 1, "maxLength": 2000 },
+    "currentTask": { "type": ["string", "null"], "minLength": 1, "maxLength": 2000 },
+    "sessionSkills": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/sessionSkills" }] },
+    "guardrails": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/guardrails" }] },
+    "model": { "type": ["string", "null"], "maxLength": 100 },
+    "runtimeMinutes": { "type": ["integer", "null"], "minimum": 1 },
+    "status": { "enum": ["idle", "queued", "running", "paused", "completed", "failed", "cancelled"] },
+    "createdAt": { "$ref": "agent-context#/$defs/timestamp" },
+    "updatedAt": { "$ref": "agent-context#/$defs/timestamp" },
+    "endedAt": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/timestamp" }] }
+  }
+}

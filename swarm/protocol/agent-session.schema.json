@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent-session",
+  "type": "object",
+  "required": ["id", "assignmentId", "agentKind", "model", "status", "phase", "startedAt", "updatedAt", "inputTokens", "outputTokens", "lastEventSeq"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "assignmentId": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "agentKind": { "enum": ["orchestrator", "manager", "claude", "codex", "gemini", "antigravity"] },
+    "model": { "type": ["string", "null"], "maxLength": 100 },
+    "status": { "enum": ["running", "completed", "interrupted", "failed"] },
+    "phase": { "type": ["string", "null"], "maxLength": 80 },
+    "goal": { "type": ["string", "null"], "minLength": 1, "maxLength": 2000 },
+    "currentTask": { "type": ["string", "null"], "minLength": 1, "maxLength": 2000 },
+    "sessionSkills": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/sessionSkills" }] },
+    "guardrails": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/guardrails" }] },
+    "startedAt": { "$ref": "agent-context#/$defs/timestamp" },
+    "updatedAt": { "$ref": "agent-context#/$defs/timestamp" },
+    "endedAt": { "anyOf": [{ "type": "null" }, { "$ref": "agent-context#/$defs/timestamp" }] },
+    "inputTokens": { "type": "integer", "minimum": 0 },
+    "outputTokens": { "type": "integer", "minimum": 0 },
+    "lastEventSeq": { "type": "integer", "minimum": 0 }
+  }
+}

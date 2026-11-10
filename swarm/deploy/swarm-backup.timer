@@ -1,0 +1,10 @@
+# Nightly at 03:17 local time. Persistent: a missed run happens at next start.
+[Unit]
+Description=Nightly swarm database backup
+
+[Timer]
+OnCalendar=*-*-* 03:17:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

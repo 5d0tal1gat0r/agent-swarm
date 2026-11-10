@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "api/agent-context.request",
+  "type": "object",
+  "required": ["idempotencyKey", "reason", "context"],
+  "additionalProperties": false,
+  "properties": {
+    "idempotencyKey": { "type": "string", "minLength": 8, "maxLength": 200 },
+    "reason": { "type": "string", "minLength": 3, "maxLength": 300 },
+    "context": { "$ref": "../agent-context" }
+  }
+}

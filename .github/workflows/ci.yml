@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  # Runs on every PR: `check` is required by the main protection rule.
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: autopilot
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node --test 'test/*.test.mjs'
+      - name: Shellcheck
+        working-directory: .
+        run: shellcheck swarm/scripts/swarmctl swarm/scripts/checks.sh scripts/*.sh
+      - name: Gitleaks secret scan
+        working-directory: .
+        run: docker run --rm -v "${GITHUB_WORKSPACE}:/repo:ro" zricethezav/gitleaks:v8.30.1 detect --source=/repo --no-git --no-banner --redact
+      # Swarm (M0+): same single required job `check`; steps skip until swarm/ exists.
+      - name: Swarm dependencies
+        if: hashFiles('swarm/package.json') != ''
+        working-directory: swarm
+        run: npm ci --ignore-scripts
+      - name: Swarm dependency audit
+        if: hashFiles('swarm/package.json') != ''
+        working-directory: swarm
+        run: npm audit --audit-level=high
+      - name: Swarm tests
+        if: hashFiles('swarm/package.json') != ''
+        working-directory: swarm
+        run: npm test

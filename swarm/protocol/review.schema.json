@@ -1,0 +1,24 @@
+{
+  "type": "object",
+  "required": ["verdict", "summary", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "verdict": { "enum": ["approve", "changes_requested"] },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "findings": {
+      "type": "array",
+      "maxItems": 50,
+      "items": {
+        "type": "object",
+        "required": ["severity", "file", "problem", "fix"],
+        "additionalProperties": false,
+        "properties": {
+          "severity": { "enum": ["blocker", "major", "minor"] },
+          "file": { "type": "string", "maxLength": 500 },
+          "problem": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "fix": { "type": "string", "maxLength": 1000 }
+        }
+      }
+    }
+  }
+}

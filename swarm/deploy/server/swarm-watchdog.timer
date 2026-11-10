@@ -1,0 +1,10 @@
+# Every 2 minutes (same window as the monitor's manager_down rule).
+[Unit]
+Description=Swarm watchdog every 2 minutes
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=2min
+
+[Install]
+WantedBy=timers.target

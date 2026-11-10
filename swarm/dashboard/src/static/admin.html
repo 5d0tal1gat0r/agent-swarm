@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width">
+<title>Swarm administration</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/maint.js"></script>
+<script type="module" src="/admin.js"></script>
+</head>
+<body>
+<header class="bar">
+  <a class="mark mono" href="/" aria-label="Swarm control room">[sw]</a>
+  <a class="scope" href="/">swarm</a> <span class="mut">/ administration</span>
+  <a class="act navlink" href="/">Live view</a>
+  <a class="act navlink" href="/agents">Agents</a>
+  <a class="act navlink" href="/graph">Graph</a>
+  <a class="act navlink" href="/chat">Chat</a>
+  <span id="viewer" class="fresh mut"></span>
+  <button type="button" id="logout" class="act" hidden>Sign out</button>
+</header>
+<main class="admin-main">
+  <section id="admin-access" class="panel admin-access" role="status">
+    <h1>Administration</h1>
+    <p class="mut">Checking owner access…</p>
+  </section>
+  <div id="admin" hidden>
+    <div class="title admin-intro">
+      <h1>Administration</h1>
+      <p class="finding">Manage the credentials that let people and services access the swarm.</p>
+      <p class="service mono">owner only · changes are sent to the orchestrator</p>
+    </div>
+    <section class="panel" aria-labelledby="h-tokens">
+      <div class="head"><h2 id="h-tokens">Access tokens</h2><span class="mut">members and service accounts · raw tokens shown once</span></div>
+      <div id="tokens" class="scroll"></div>
+      <p id="admin-result" class="mut" role="status"></p>
+    </section>
+  </div>
+</main>
+<dialog id="confirm" aria-labelledby="confirm-title">
+  <form id="confirm-form" method="dialog">
+    <h2 id="confirm-title">Confirm action</h2>
+    <p id="confirm-what"></p>
+    <label for="confirm-reason">Reason (required, recorded and posted on the swarm channel)</label>
+    <textarea id="confirm-reason" rows="3" maxlength="300" required></textarea>
+    <div class="btns">
+      <button type="button" id="confirm-cancel" class="secondary">Back</button>
+      <button type="submit" id="confirm-ok" disabled>Confirm</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>

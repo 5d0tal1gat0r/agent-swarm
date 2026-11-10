@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent cockpit · Swarm</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/agents.js"></script>
+</head>
+<body class="cockpit-page">
+<header class="bar cockpit-bar">
+  <a class="mark mono" href="/">[sw]</a>
+  <span class="scope">Agent cockpit</span>
+  <nav aria-label="Dashboard"><a class="act navlink" href="/">Control room</a><a class="act navlink" href="/graph">Graph</a><a class="act navlink" href="/chat">Chat</a></nav>
+  <span id="cockpit-connection" class="fresh" role="status"><span class="dot"></span>Connecting</span>
+</header>
+<main class="cockpit-main">
+  <aside class="cockpit-rail" aria-labelledby="agents-title">
+    <div class="cockpit-section-head"><div><p class="eyebrow">Live system</p><h1 id="agents-title">Agents</h1></div><span id="agent-count" class="count-chip">0</span></div>
+    <div class="cockpit-view-switch" role="tablist" aria-label="Cockpit view"><button type="button" class="selected" data-view="agents" aria-selected="true">Agents</button><button type="button" data-view="tasks" aria-selected="false">Tasks</button></div>
+    <div id="agent-tree" class="cockpit-agent-tree" aria-live="polite"></div>
+    <div id="task-list" class="cockpit-task-list" hidden aria-live="polite"></div>
+    <footer><span><i class="agent-state state-running"></i>Active</span><span><i class="agent-state state-waiting"></i>Waiting</span><span><i class="agent-state state-offline"></i>Offline</span></footer>
+  </aside>
+
+  <section class="cockpit-workspace">
+    <header class="cockpit-workspace-head">
+      <div><p class="eyebrow">Selected agent</p><h2 id="workspace-title">Orchestrator</h2><p id="workspace-subtitle" class="mut">Loading assignment…</p></div>
+      <div class="live-badge"><span class="dot ok"></span><span id="live-label">Live</span></div>
+    </header>
+    <div id="task-focus" class="task-focus-wrap"></div>
+    <div class="cockpit-streams">
+      <section class="cockpit-conversation" aria-labelledby="conversation-title">
+        <div class="stream-head"><h3 id="conversation-title">Conversation</h3><span id="conversation-count" class="mut"></span></div>
+        <div id="conversation" class="stream-scroll" aria-live="polite"></div>
+      </section>
+      <section class="cockpit-timeline" aria-labelledby="timeline-title">
+        <div class="stream-head"><h3 id="timeline-title">Execution timeline</h3><select id="timeline-filter" aria-label="Filter timeline"><option value="">All events</option><option value="status">Status</option><option value="tool">Tools</option><option value="directive">Directives</option></select></div>
+        <div id="timeline" class="stream-scroll" aria-live="polite"></div>
+      </section>
+    </div>
+    <form id="prompt-form" class="cockpit-composer">
+      <label class="sr" for="prompt-text">Prompt selected agent</label>
+      <textarea id="prompt-text" rows="3" maxlength="8192" placeholder="Prompt the orchestrator…  (Ctrl or ⌘ + Enter to send)" required></textarea>
+      <div class="composer-foot"><span id="prompt-hint" class="mut">Prompts and commands are audited.</span><button id="prompt-send" type="submit">Send prompt <kbd>⌘↵</kbd></button></div>
+    </form>
+  </section>
+
+  <aside class="cockpit-inspector" aria-labelledby="inspector-title">
+    <p class="eyebrow">Inspector</p>
+    <div id="inspector"><p class="cockpit-empty">Select an agent.</p></div>
+    <p id="cockpit-notice" class="cockpit-notice" role="status" hidden></p>
+  </aside>
+</main>
+
+<dialog id="agent-dialog" class="cockpit-dialog" aria-labelledby="agent-dialog-title">
+  <form id="agent-dialog-form">
+    <h2 id="agent-dialog-title">Confirm action</h2>
+    <p id="agent-dialog-copy" class="mut"></p>
+    <div id="context-fields" hidden>
+      <label for="context-goal">Goal</label><textarea id="context-goal" rows="3" maxlength="2000"></textarea>
+      <label for="context-task">Current task</label><textarea id="context-task" rows="3" maxlength="2000"></textarea>
+      <label for="context-skills">Skills (comma separated)</label><input id="context-skills" maxlength="500">
+    </div>
+    <label for="agent-reason">Reason <span class="mut">(required, recorded in the audit trail)</span></label>
+    <textarea id="agent-reason" rows="3" minlength="3" maxlength="300" required></textarea>
+    <div class="btns"><button type="button" id="agent-dialog-cancel" class="secondary">Cancel</button><button type="submit" id="agent-dialog-confirm">Confirm</button></div>
+  </form>
+</dialog>
+
+<dialog id="audit-drawer" class="audit-drawer" aria-labelledby="audit-title">
+  <div class="audit-drawer-head"><div><p class="eyebrow">Private operator log</p><h2 id="audit-title">Action history</h2><p id="audit-subtitle" class="mut"></p></div><button type="button" class="secondary" data-close-audit aria-label="Close action history">Close</button></div>
+  <div id="audit-history" class="audit-history" aria-live="polite"></div>
+</dialog>
+</body>
+</html>

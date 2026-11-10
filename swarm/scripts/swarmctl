@@ -1,0 +1,523 @@
+#!/usr/bin/env bash
+# swarmctl: start, stop, restart, check and upgrade the swarm services on this machine.
+# The orchestrator runs on the orchestrator machine (all model calls happen there); managers run on
+# member machines; the server runs the bus (agent-comm) and the watchdog.
+# Units come from swarm/deploy/ (see RUNBOOK.md).
+# Run `swarmctl help` for the commands.
+set -Eeuo pipefail
+
+SWARM_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+REPO_DIR="$(dirname -- "$SWARM_DIR")"
+UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
+ENV_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/swarm/orchestrator.env"
+WATCHDOG_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/swarm/watchdog.env"
+DASHBOARD_ENV="${XDG_CONFIG_HOME:-$HOME/.config}/swarm/dashboard.env"
+BACKUP_DIR="$HOME/.swarm/backups"
+MAINT_FILE="$HOME/.swarm/dashboard-maintenance.json"
+NODE=(node --disable-warning=ExperimentalWarning)
+
+ORCH_UNITS=(swarm-orchestrator.service swarm-backup.timer)
+MANAGER_UNITS=(swarm-manager.service)
+WATCHDOG_UNITS=(swarm-watchdog.timer)
+DASHBOARD_UNITS=(swarm-dashboard.service)
+AUTODEPLOY_UNITS=(swarm-autodeploy.timer)
+BUS_UNITS=(agent-comm.service agent-comm-mcp.service)
+
+die() { printf 'swarmctl: %s\n' "$*" >&2; exit 1; }
+say() { printf '%s\n' "$*"; }
+
+usage() {
+  cat <<'EOF'
+usage: swarmctl [--remote <ssh-host>] <command> [args]
+
+  install orchestrator|manager|watchdog|dashboard|autodeploy   copy units, npm ci, env template (no start)
+                                 orchestrator: workstation. manager: member machine. watchdog, dashboard,
+                                 autodeploy: server.
+  start   [orchestrator|manager|watchdog|dashboard|autodeploy|bus|all]   enable and start (default: all installed)
+  stop    [orchestrator|manager|watchdog|dashboard|autodeploy|bus|all]
+  restart [orchestrator|manager|watchdog|dashboard|autodeploy|bus|all]   alias: reboot
+  status                         units, orchestrator /health, bus /health
+  health                         exit 1 when the orchestrator or the bus does not answer
+  logs    [orchestrator|manager|watchdog|dashboard|bus] [-f] [-n <lines>]
+  doctor                         orchestrator doctor and/or manager doctor
+  backup [--nightly]             orchestrator DB backup to ~/.swarm/backups, then a copy to
+                                 SWARM_BACKUP_PUSH (scp target) when that is set
+  upgrade                        backup, git pull --ff-only, npm ci, restart, health check;
+                                 rolls the code back when the orchestrator stays down
+  rollback <sha>                 stop, check out <sha>, npm ci, start
+  autodeploy                     fetch; upgrade when origin/main moved (run by swarm-autodeploy.timer);
+                                 a sha that failed is skipped until main moves again
+  maintenance on [reason]|off|status
+                                 the dashboard's maintenance banner (on this machine); upgrade and
+                                 restart set it by themselves while they touch the dashboard
+  export <file>                  move out: stop the orchestrator, pack its DB, manager tokens and
+                                 env into <file> (mode 0600, holds secrets)
+  import <file>                  move in: install the orchestrator here from an export file, with
+                                 this machine's Tailscale address and PATH (then: swarmctl start)
+
+  --remote <ssh-host>   run the command on another machine, e.g. --remote <owner>@<server>
+EOF
+}
+
+installed() { [[ -f "$UNIT_DIR/$1" ]]; }
+
+# Units for a target; "all" means every installed swarm unit (the bus only when named).
+units_for() {
+  local target="${1:-all}" u
+  case "$target" in
+    orchestrator) printf '%s\n' "${ORCH_UNITS[@]}" ;;
+    manager) printf '%s\n' "${MANAGER_UNITS[@]}" ;;
+    watchdog) printf '%s\n' "${WATCHDOG_UNITS[@]}" ;;
+    dashboard) printf '%s\n' "${DASHBOARD_UNITS[@]}" ;;
+    autodeploy) printf '%s\n' "${AUTODEPLOY_UNITS[@]}" ;;
+    bus) printf '%s\n' "${BUS_UNITS[@]}" ;;
+    all) for u in "${ORCH_UNITS[@]}" "${MANAGER_UNITS[@]}" "${WATCHDOG_UNITS[@]}" "${DASHBOARD_UNITS[@]}"; do installed "$u" && printf '%s\n' "$u"; done; true ;;
+    *) die "unknown target '$target' (orchestrator, manager, watchdog, dashboard, autodeploy, bus, all)" ;;
+  esac
+}
+
+load_env() {
+  SWARM_HOST=127.0.0.1 SWARM_PORT=3423 SWARM_BUS_MCP_URL=http://127.0.0.1:3422/mcp SWARM_ORCH_URL='' SWARM_BACKUP_PUSH=''
+  local f
+  for f in "$ENV_FILE" "$WATCHDOG_ENV"; do
+    [[ -r "$f" ]] || continue
+    # Only non-secret keys with plain values are read; the token line is never sourced.
+    eval "$(grep -E '^(SWARM_HOST|SWARM_PORT|SWARM_BUS_MCP_URL|SWARM_ORCH_URL|SWARM_BACKUP_PUSH)=[A-Za-z0-9.:/@_-]+$' "$f")"
+  done
+}
+
+probe() { curl -fsS --max-time 4 "$1" >/dev/null 2>&1; }
+# The orchestrator URL: SWARM_ORCH_URL, the location published on the bus (SWARM_ORCH_URL=bus), or this machine's env.
+orch_url() {
+  local base
+  if [[ "$SWARM_ORCH_URL" == bus ]]; then
+    base="$(cd "$SWARM_DIR" && SWARM_BUS_MCP_URL="$SWARM_BUS_MCP_URL" "${NODE[@]}" --input-type=module -e "
+      import { Bus } from './shared/bus.mjs'; import { lookupLocation } from './shared/locate.mjs';
+      const b = new Bus(process.env.SWARM_BUS_MCP_URL, 'swarm-ctl', { warn() {} });
+      process.stdout.write((await lookupLocation(b))?.url ?? 'http://no-location-on-the-bus'); await b.close();" 2>/dev/null)" \
+      || base=http://no-location-on-the-bus
+  elif [[ -n "$SWARM_ORCH_URL" ]]; then base="$SWARM_ORCH_URL"
+  else base="http://$SWARM_HOST:$SWARM_PORT"; fi
+  printf '%s/health' "${base%/}"
+}
+
+# This machine's Tailscale IPv4, or 127.0.0.1 without Tailscale.
+this_host() { tailscale ip -4 2>/dev/null | head -n1 | grep -E '^[0-9.]+$' || echo 127.0.0.1; }
+
+# Writes a fresh orchestrator env file: template, this machine's address and PATH, then kept lines from $1 (optional).
+write_orch_env() {
+  local keep="${1:-}" host
+  host="$(this_host)"
+  mkdir -p "$(dirname "$ENV_FILE")" "$HOME/.swarm"
+  {
+    grep -vE '^(SWARM_HOST|PATH)=' "$SWARM_DIR/deploy/env/orchestrator.env.example"
+    printf 'SWARM_HOST=%s\n' "$host"
+    # systemd user services do not get the login shell's PATH (mise, ~/.local/bin): pin it.
+    printf 'PATH=%s\n' "$(service_path node claude gh)"
+    [[ -n "$keep" ]] && grep -E '^(GH_TOKEN|SWARM_PORT|SWARM_BUS_MCP_URL|SWARM_BACKUP_PUSH)=' "$keep"
+    true
+  } > "$ENV_FILE.tmp" || die "could not write $ENV_FILE.tmp"
+  { chmod 600 "$ENV_FILE.tmp" && mv "$ENV_FILE.tmp" "$ENV_FILE"; } || die "could not install $ENV_FILE"
+  say "wrote $ENV_FILE (mode 0600), SWARM_HOST=$host"
+}
+bus_url() { printf '%s' "${SWARM_BUS_MCP_URL%/mcp}/health"; }
+
+# Dashboard maintenance flag (ARCHITECTURE 77): a JSON file the dashboard reads on every /health. upgrade and
+# restart set it only when none exists (MAINT_SET=1) and clear only their own, so a flag set by hand stays.
+MAINT_SET=0
+maint_write() {
+  mkdir -p "$(dirname "$MAINT_FILE")"
+  REASON="$1" AUTO="$2" "${NODE[@]}" -e 'process.stdout.write(JSON.stringify({ reason: process.env.REASON, by: process.env.USER || "swarmctl", since: new Date().toISOString(), auto: process.env.AUTO === "1" }) + "\n")' > "$MAINT_FILE.tmp" \
+    && chmod 600 "$MAINT_FILE.tmp" && mv "$MAINT_FILE.tmp" "$MAINT_FILE"
+}
+dashboard_here() { installed swarm-dashboard.service; }
+dash_health_url() {
+  local DASH_HOST=127.0.0.1 DASH_PORT=3424
+  [[ -r "$DASHBOARD_ENV" ]] && eval "$(grep -E '^(DASH_HOST|DASH_PORT)=[A-Za-z0-9.:-]+$' "$DASHBOARD_ENV")"
+  printf 'http://%s:%s/health' "$DASH_HOST" "$DASH_PORT"
+}
+maint_begin() {
+  dashboard_here && [[ ! -e "$MAINT_FILE" ]] || return 0
+  if maint_write "$1" 1; then MAINT_SET=1; else say "could not write $MAINT_FILE (continuing)"; fi
+}
+# Clears our flag once the dashboard answers again; a dashboard that stays down keeps it on, with that reason.
+maint_end() {
+  ((MAINT_SET)) || return 0
+  local _
+  for _ in $(seq 1 15); do
+    probe "$(dash_health_url)" && { rm -f "$MAINT_FILE"; MAINT_SET=0; return 0; }
+    sleep 1
+  done
+  maint_write "$1: the dashboard does not answer /health" 1
+}
+maint_fail() { ((MAINT_SET)) && maint_write "$1" 1; return 0; }
+
+cmd_maintenance() {
+  case "${1:-status}" in
+    on) maint_write "${2:-maintenance}" 0 || die "could not write $MAINT_FILE"; say "maintenance on: ${2:-maintenance}" ;;
+    off) rm -f "$MAINT_FILE"; say "maintenance off" ;;
+    status)
+      if [[ -e "$MAINT_FILE" ]]; then
+        # shellcheck disable=SC2016 # a JavaScript template literal, not a shell expansion
+        "${NODE[@]}" -e 'const f = (() => { try { return JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")); } catch { return {}; } })(); console.log(`on since ${f.since ?? "?"}: ${f.reason ?? "maintenance"}`)' "$MAINT_FILE"
+      else say "off"; fi ;;
+    *) die "usage: swarmctl maintenance on [reason]|off|status" ;;
+  esac
+}
+
+# restart/reboot: the maintenance flag is on while the dashboard is among the restarted units.
+restart_units() {
+  local target="${1:-all}"
+  [[ "$target" == dashboard || "$target" == all ]] && maint_begin "restart"
+  systemctl_units restart "$target"
+  maint_end "restart"
+}
+
+systemctl_units() {
+  local action="$1" target="${2:-all}"
+  mapfile -t units < <(units_for "$target")
+  ((${#units[@]})) || die "no swarm units installed here; run: swarmctl install orchestrator|manager"
+  for u in "${units[@]}"; do installed "$u" || die "$u is not installed in $UNIT_DIR"; done
+  case "$action" in
+    start) systemctl --user enable --now "${units[@]}" ;;
+    stop) systemctl --user stop "${units[@]}" ;;
+    restart) systemctl --user restart "${units[@]}" ;;
+  esac
+  say "$action: ${units[*]}"
+}
+
+# Copies units into the user unit dir, pointed at this checkout: the templates name the default
+# clone (%h/swarm-app/repo) and state dir (%h/.swarm); a checkout elsewhere, or a ~/.swarm that is a
+# symlink into it, gets the real paths (ProtectSystem needs the real writable path).
+install_unit() {
+  local state f
+  state="$(readlink -f "$HOME/.swarm" 2>/dev/null || true)"
+  [[ -n "$state" ]] || state="$HOME/.swarm"
+  for f in "$@"; do
+    sed -e "s#%h/swarm-app/repo#${REPO_DIR}#g" -e "s#%h/\.swarm#${state}#g" "$f" > "$UNIT_DIR/$(basename "$f")"
+  done
+}
+
+cmd_install() {
+  local role="${1:-}"
+  [[ "$role" == orchestrator || "$role" == manager || "$role" == watchdog || "$role" == dashboard || "$role" == autodeploy ]] || die "usage: swarmctl install orchestrator|manager|watchdog|dashboard|autodeploy"
+  say "units will run from this checkout: $REPO_DIR"
+  command -v node >/dev/null || die "node is required (22.13 or newer)"
+  (cd "$SWARM_DIR" && npm ci --ignore-scripts --silent)
+  mkdir -p "$UNIT_DIR"
+  if [[ "$role" == orchestrator ]]; then
+    install_unit "$SWARM_DIR"/deploy/swarm-orchestrator.service "$SWARM_DIR"/deploy/swarm-backup.service "$SWARM_DIR"/deploy/swarm-backup.timer
+    mkdir -p "$(dirname "$ENV_FILE")" "$HOME/.swarm"
+    if [[ ! -f "$ENV_FILE" ]]; then
+      write_orch_env
+      say "add GH_TOKEN to $ENV_FILE when issued"
+    fi
+  elif [[ "$role" == dashboard ]]; then
+    install_unit "$SWARM_DIR/deploy/server/swarm-dashboard.service"
+    mkdir -p "$(dirname "$DASHBOARD_ENV")" "$HOME/.swarm"
+    [[ -f "$DASHBOARD_ENV" ]] || copy_private "$SWARM_DIR/deploy/env/dashboard.env.example" "$DASHBOARD_ENV"
+    say "next: save the dashboard token (token add ... --dashboard on the orchestrator machine) to ~/.swarm/dashboard.token, mode 0600"
+  elif [[ "$role" == autodeploy ]]; then
+    install_unit "$SWARM_DIR"/deploy/server/swarm-autodeploy.service "$SWARM_DIR"/deploy/server/swarm-autodeploy.timer
+    mkdir -p "$(dirname "$ENV_FILE")" "$HOME/.swarm"
+    # The service runs git, node, npm and flock; give it the login shell's PATH.
+    { printf '# Written by swarmctl install autodeploy. No secrets here.\n'; printf 'PATH=%s\n' "$(service_path node npm git flock)"; } > "$(dirname "$ENV_FILE")/autodeploy.env"
+  elif [[ "$role" == watchdog ]]; then
+    install_unit "$SWARM_DIR"/deploy/server/swarm-watchdog.service "$SWARM_DIR"/deploy/server/swarm-watchdog.timer
+    mkdir -p "$(dirname "$WATCHDOG_ENV")" "$HOME/.swarm"
+    [[ -f "$WATCHDOG_ENV" ]] || copy_private "$SWARM_DIR/deploy/env/watchdog.env.example" "$WATCHDOG_ENV"
+  else
+    install_unit "$SWARM_DIR/deploy/swarm-manager.service"
+    mkdir -p "$(dirname "$ENV_FILE")"
+    # The service needs the login shell's PATH for node, gh, git, podman and the agent CLIs.
+    { printf '# Written by swarmctl install manager. No secrets here.\n'; printf 'PATH=%s\n' "$(service_path node gh git podman claude codex gemini)"; } > "$(dirname "$ENV_FILE")/manager.env"
+    [[ -f "$HOME/.swarm/manager.json" ]] || say "next: node manager/bin/manager.mjs init ... (RUNBOOK section 2)"
+  fi
+  systemctl --user daemon-reload
+  say "installed $role units in $UNIT_DIR (not started). Next: swarmctl doctor, then swarmctl start $role"
+}
+
+unit_line() {
+  local u="$1"
+  if installed "$u"; then
+    printf '  %-26s %s\n' "$u" "$(systemctl --user is-active "$u" 2>/dev/null || true)"
+  else
+    printf '  %-26s %s\n' "$u" "not installed"
+  fi
+}
+
+cmd_status() {
+  load_env
+  say "swarm checkout: $SWARM_DIR at $(git -C "$REPO_DIR" rev-parse --short HEAD 2>/dev/null || echo '?')"
+  say "units:"
+  for u in "${ORCH_UNITS[@]}" "${MANAGER_UNITS[@]}" "${WATCHDOG_UNITS[@]}" "${DASHBOARD_UNITS[@]}" "${AUTODEPLOY_UNITS[@]}" "${BUS_UNITS[@]}"; do unit_line "$u"; done
+  say "endpoints:"
+  if probe "$(orch_url)"; then say "  orchestrator $(orch_url) ok"; else say "  orchestrator $(orch_url) DOWN"; fi
+  if probe "$(bus_url)"; then say "  bus          $(bus_url) ok"; else say "  bus          $(bus_url) DOWN"; fi
+  [[ -f "$HOME/.swarm/manager.json" ]] && say "manager config: $HOME/.swarm/manager.json"
+  true
+}
+
+cmd_health() {
+  load_env
+  local bad=0
+  if probe "$(orch_url)"; then say "ok   orchestrator"; else say "FAIL orchestrator $(orch_url)"; bad=1; fi
+  if probe "$(bus_url)"; then say "ok   bus"; else say "FAIL bus $(bus_url)"; bad=1; fi
+  return "$bad"
+}
+
+cmd_logs() {
+  local target=orchestrator args=(-n 50)
+  while (($#)); do
+    case "$1" in
+      -f) args+=(-f) ;;
+      -n) shift; args+=(-n "${1:?-n needs a number}") ;;
+      *) target="$1" ;;
+    esac
+    shift
+  done
+  mapfile -t units < <(units_for "$target")
+  local jargs=()
+  for u in "${units[@]}"; do [[ "$u" == *.timer ]] && u="${u%.timer}.service"; jargs+=(-u "$u"); done
+  exec journalctl --user "${jargs[@]}" "${args[@]}" --no-pager
+}
+
+cmd_doctor() {
+  local ran=0
+  cd "$SWARM_DIR"
+  if installed swarm-orchestrator.service || [[ -f "$HOME/.swarm/managers.json" ]]; then
+    say "== orchestrator doctor"; "${NODE[@]}" orchestrator/bin/orchestrator.mjs doctor; ran=1
+  fi
+  if installed swarm-manager.service || [[ -f "$HOME/.swarm/manager.json" ]]; then
+    say "== manager doctor"; "${NODE[@]}" manager/bin/manager.mjs doctor; ran=1
+  fi
+  ((ran)) || die "nothing to check: no orchestrator or manager set up here"
+}
+
+cmd_backup() {
+  load_env
+  mkdir -p "$HOME/.swarm" "$BACKUP_DIR"
+  chmod 700 "$HOME/.swarm" "$BACKUP_DIR"
+  local out prefix=manual
+  [[ "${1:-}" == --nightly ]] && prefix=swarm
+  out="$BACKUP_DIR/$prefix-$(date +%Y%m%d-%H%M%S).db"
+  (umask 077 && cd "$SWARM_DIR" && "${NODE[@]}" orchestrator/bin/orchestrator.mjs backup --out "$out")
+  [[ ! -e "$out" ]] || chmod 600 "$out"
+  say "backup: $out"
+  if [[ -n "$SWARM_BACKUP_PUSH" ]]; then
+    if scp -q -o BatchMode=yes "$out" "$SWARM_BACKUP_PUSH"; then say "copied to $SWARM_BACKUP_PUSH"
+    else say "warning: copy to $SWARM_BACKUP_PUSH failed; local backup kept"; fi
+  fi
+}
+
+# Directories of the given commands plus the system dirs, for the service PATH.
+# A mise tool whose binary sits in a version-named folder (gh: latest/gh_2.103.3_linux_amd64/bin)
+# gets mise's shims folder instead, so the unit keeps working after the tool is upgraded.
+service_path() {
+  local c d out="" shims="${MISE_DATA_DIR:-$HOME/.local/share/mise}/shims"
+  for c in "$@"; do
+    d="$(dirname -- "$(command -v "$c" 2>/dev/null || echo /usr/bin/x)")"
+    if [[ "$d" =~ /mise/installs/[^/]+/latest/.*[0-9]+\.[0-9]+ && -x "$shims/$c" ]]; then d="$shims"; fi
+    [[ ":$out:" == *":$d:"* ]] || out="${out:+$out:}$d"
+  done
+  printf '%s:/usr/local/bin:/usr/bin:/bin' "$out"
+}
+
+wait_healthy() {
+  local _
+  for _ in $(seq 1 15); do
+    probe "$(orch_url)" && return 0
+    sleep 2
+  done
+  return 1
+}
+
+# Checks out a sha and installs its dependencies. Returns 1 on failure (callers decide what to undo).
+deploy_sha() {
+  local sha full
+  # checkout has no --end-of-options on older git: resolve to a full hex sha first.
+  full="$(git -C "$REPO_DIR" rev-parse --verify --end-of-options "$1^{commit}")" || return 1
+  sha="$full"
+  # On a branch (a working checkout on main), move the branch
+  # forward instead of detaching it; anything else (a rollback, a deploy clone) checks the sha out.
+  if git -C "$REPO_DIR" symbolic-ref -q HEAD >/dev/null && git -C "$REPO_DIR" merge-base --is-ancestor HEAD "$sha"; then
+    git -C "$REPO_DIR" merge --quiet --ff-only "$sha" || return 1
+  else
+    git -C "$REPO_DIR" checkout --quiet --detach "$sha" || return 1
+  fi
+  (cd "$SWARM_DIR" && npm ci --ignore-scripts --silent) || return 1
+}
+
+# Puts the code back on $1 after a failed deploy and restarts. Always returns 1.
+revert_to() {
+  local old="$1"
+  say "rolling the code back to ${old:0:7}"
+  if ! deploy_sha "$old"; then say "could not restore ${old:0:7}: fix by hand (git checkout, npm ci in swarm/, swarmctl restart)"; return 1; fi
+  ( systemctl_units restart all ) || say "restart failed on ${old:0:7}: check 'swarmctl logs'"
+  return 1
+}
+
+cmd_upgrade() {
+  load_env
+  [[ -z "$(git -C "$REPO_DIR" status --porcelain --untracked-files=no)" ]] || die "$REPO_DIR has local changes; refusing to upgrade"
+  local old orch=0
+  old="$(git -C "$REPO_DIR" rev-parse HEAD)"
+  installed swarm-orchestrator.service && orch=1
+  ((orch)) && [[ -f "$HOME/.swarm/swarm.db" ]] && cmd_backup
+  git -C "$REPO_DIR" fetch --quiet origin main
+  local new
+  new="$(git -C "$REPO_DIR" rev-parse origin/main)"
+  [[ "$old" != "$new" ]] || { say "already at ${new:0:7}"; return 0; }
+  say "upgrade ${old:0:7} -> ${new:0:7}"
+  git -C "$REPO_DIR" merge-base --is-ancestor "$old" "$new" || die "origin/main is not ahead of ${old:0:7}; not a fast-forward"
+  maint_begin "upgrade ${old:0:7} -> ${new:0:7}"
+  if ! deploy_sha "$new"; then
+    say "checkout or npm ci failed for ${new:0:7}"
+    maint_fail "upgrade to ${new:0:7} failed (checkout or npm ci); rolled back to ${old:0:7}"
+    revert_to "$old"
+    return 1
+  fi
+  if ! ( systemctl_units restart all ); then
+    say "restart failed on ${new:0:7}"
+    maint_fail "upgrade to ${new:0:7} failed (restart); rolled back to ${old:0:7}"
+    revert_to "$old"
+    return 1
+  fi
+  if ((orch)); then
+    if ! wait_healthy; then
+      say "orchestrator not healthy on ${new:0:7}"
+      maint_fail "upgrade to ${new:0:7} failed (orchestrator not healthy); rolled back to ${old:0:7}"
+      revert_to "$old" || true
+      if wait_healthy; then say "back on ${old:0:7}, healthy"
+      else say "still down on ${old:0:7}: check 'swarmctl logs', and RUNBOOK section 4 for a DB restore"; fi
+      return 1
+    fi
+  elif installed swarm-manager.service && [[ "$(systemctl --user is-active swarm-manager.service 2>/dev/null || true)" != active ]]; then
+    say "swarm-manager.service is not active on ${new:0:7}"
+    maint_fail "upgrade to ${new:0:7} failed (manager not active); rolled back to ${old:0:7}"
+    revert_to "$old"
+    return 1
+  fi
+  maint_end "upgrade to ${new:0:7}"
+  say "upgraded to ${new:0:7}"
+}
+
+# Auto-deploy (ARCHITECTURE 76): swarm-autodeploy.timer runs this every 5 minutes on the server. Quiet while
+# origin/main has not moved; otherwise the normal upgrade, in a subshell so its `die` paths count as a failure.
+# A failed sha is written to AUTODEPLOY_FAILED and skipped until main moves again, so a broken merge is not
+# retried (and rolled back) every 5 minutes. flock keeps two runs from overlapping.
+AUTODEPLOY_FAILED="$HOME/.swarm/autodeploy-failed"
+cmd_autodeploy() {
+  mkdir -p "$HOME/.swarm"
+  exec 9>"$HOME/.swarm/autodeploy.lock"
+  flock -n 9 || { say "another autodeploy is running"; return 0; }
+  git -C "$REPO_DIR" fetch --quiet origin main || die "git fetch origin main failed"
+  local head new failed=""
+  head="$(git -C "$REPO_DIR" rev-parse HEAD)"
+  new="$(git -C "$REPO_DIR" rev-parse origin/main)"
+  [[ "$head" != "$new" ]] || return 0
+  [[ -r "$AUTODEPLOY_FAILED" ]] && failed="$(<"$AUTODEPLOY_FAILED")"
+  if [[ "$failed" == "$new" ]]; then
+    say "skip ${new:0:7}: its upgrade failed before; waiting for a new commit on main (or delete $AUTODEPLOY_FAILED)"
+    return 0
+  fi
+  say "autodeploy: origin/main moved ${head:0:7} -> ${new:0:7}"
+  if ( cmd_upgrade ); then
+    rm -f "$AUTODEPLOY_FAILED"
+  else
+    printf '%s\n' "$new" > "$AUTODEPLOY_FAILED"
+    say "autodeploy of ${new:0:7} failed; skipped until main moves (swarmctl logs, swarmctl status)"
+    return 1
+  fi
+}
+
+cmd_rollback() {
+  local sha="${1:-}" old
+  [[ -n "$sha" ]] || die "usage: swarmctl rollback <sha>"
+  [[ "$sha" != -* ]] || die "invalid commit '$sha'"
+  [[ -z "$(git -C "$REPO_DIR" status --porcelain --untracked-files=no)" ]] || die "$REPO_DIR has local changes; refusing to roll back"
+  git -C "$REPO_DIR" rev-parse --verify --quiet --end-of-options "$sha^{commit}" >/dev/null || die "unknown commit $sha"
+  old="$(git -C "$REPO_DIR" rev-parse HEAD)"
+  # Install the target's dependencies first; the services keep running if that fails.
+  if ! deploy_sha "$sha"; then
+    deploy_sha "$old" || say "could not restore ${old:0:7}: check the checkout by hand"
+    die "checkout or npm ci failed for $sha; services untouched"
+  fi
+  systemctl_units stop all
+  systemctl_units start all
+  say "rolled back to $(git -C "$REPO_DIR" rev-parse --short HEAD). DB restore, if needed: RUNBOOK section 4"
+}
+
+# Copies a file readable by the owner only.
+copy_private() { { cp "$1" "$2" && chmod 600 "$2"; } || die "could not copy $1 to $2"; }
+
+# Subshell body: the EXIT trap cleans the temp dir on every bash version.
+cmd_export() (
+  local file="${1:-}" tmp
+  [[ -n "$file" ]] || die "usage: swarmctl export <file>"
+  [[ ! -e "$file" ]] || die "$file exists; refusing to overwrite"
+  [[ -f "$HOME/.swarm/swarm.db" ]] || die "no orchestrator DB at $HOME/.swarm/swarm.db"
+  if installed swarm-orchestrator.service; then systemctl_units stop orchestrator; fi
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  (cd "$SWARM_DIR" && "${NODE[@]}" orchestrator/bin/orchestrator.mjs backup --out "$tmp/swarm.db")
+  if [[ -f "$HOME/.swarm/managers.json" ]]; then copy_private "$HOME/.swarm/managers.json" "$tmp/managers.json"; fi
+  if [[ -f "$ENV_FILE" ]]; then copy_private "$ENV_FILE" "$tmp/orchestrator.env"; fi
+  (umask 077 && tar -C "$tmp" -czf "$file" .)
+  chmod 600 "$file"
+  say "exported to $file (mode 0600). It holds the GitHub token and manager token hashes:"
+  say "copy it over ssh/Tailscale only, delete it after the import. The orchestrator here is stopped;"
+  say "leave it stopped (or 'swarmctl install' elsewhere and disable it here) so only one runs."
+)
+
+# Subshell body: the EXIT trap cleans the temp dir on every bash version.
+cmd_import() (
+  local file="${1:-}" tmp
+  [[ -f "$file" ]] || die "usage: swarmctl import <file>"
+  [[ ! -e "$HOME/.swarm/swarm.db" ]] || die "$HOME/.swarm/swarm.db exists; move it away first (this is not a merge)"
+  tmp="$(mktemp -d)"
+  trap 'rm -rf "$tmp"' EXIT
+  tar -C "$tmp" -xzf "$file" || die "could not unpack $file"
+  [[ -f "$tmp/swarm.db" ]] || die "$file has no swarm.db"
+  cmd_install orchestrator >/dev/null || die "install orchestrator failed"
+  mkdir -p "$HOME/.swarm" && chmod 700 "$HOME/.swarm"
+  copy_private "$tmp/swarm.db" "$HOME/.swarm/swarm.db"
+  if [[ -f "$tmp/managers.json" ]]; then copy_private "$tmp/managers.json" "$HOME/.swarm/managers.json"; fi
+  write_orch_env "$tmp/orchestrator.env"
+  say "imported. Next: swarmctl doctor && swarmctl start orchestrator"
+  say "Managers and the watchdog with url 'bus' follow the new address once it starts."
+)
+
+main() {
+  if [[ "${1:-}" == --remote ]]; then
+    local host="${2:?--remote needs an ssh host}"
+    shift 2
+    local q
+    q="$(printf '%q ' "$@")"
+    local tty=()
+    [[ -t 1 ]] && tty=(-t)
+    exec ssh ${tty[@]+"${tty[@]}"} -- "$host" "\$HOME/swarm-app/repo/swarm/scripts/swarmctl $q"
+  fi
+  local cmd="${1:-help}"
+  shift || true
+  case "$cmd" in
+    install) cmd_install "$@" ;;
+    start|stop) systemctl_units "$cmd" "${1:-all}" ;;
+    restart|reboot) restart_units "${1:-all}" ;;
+    status) cmd_status ;;
+    health) cmd_health ;;
+    logs) cmd_logs "$@" ;;
+    doctor) cmd_doctor ;;
+    backup) cmd_backup "$@" ;;
+    upgrade) cmd_upgrade ;;
+    rollback) cmd_rollback "$@" ;;
+    autodeploy) cmd_autodeploy ;;
+    maintenance) cmd_maintenance "$@" ;;
+    export) cmd_export "$@" ;;
+    import) cmd_import "$@" ;;
+    help|-h|--help) usage ;;
+    *) usage >&2; exit 2 ;;
+  esac
+}
+
+main "$@"

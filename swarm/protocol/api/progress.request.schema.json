@@ -1,0 +1,11 @@
+{
+  "type": "object",
+  "required": ["manager", "phase", "note", "tokens"],
+  "additionalProperties": false,
+  "properties": {
+    "manager": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "phase": { "enum": ["planning", "subagents", "checks", "pr"] },
+    "note": { "type": "string", "maxLength": 500 },
+    "tokens": { "type": "integer", "minimum": 0 }
+  }
+}

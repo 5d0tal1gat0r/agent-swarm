@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swarm//irc</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/maint.js"></script>
+<script type="module" src="/chat.js"></script>
+</head>
+<body class="irc-page">
+<header class="irc-top">
+  <a class="irc-mark" href="/" aria-label="Swarm control room">[sw]</a>
+  <span class="irc-name">swarm<span class="irc-dim">//</span>irc</span>
+  <nav class="irc-nav" aria-label="Dashboard">
+    <a href="/">control room</a>
+    <a href="/agents">agents</a>
+    <a href="/graph">graph</a>
+    <a href="/chat" aria-current="page">chat</a>
+  </nav>
+  <span id="viewer" class="irc-dim"></span>
+</header>
+<main class="irc-main">
+  <section id="c-access" class="irc-access" role="status" hidden>
+    <p><span class="irc-sys">-!-</span> <span id="c-access-text">Not signed in. Sign in from the control room, then come back.</span></p>
+    <p><a href="/">[ back to the control room ]</a></p>
+  </section>
+  <div id="chat" class="irc" hidden>
+    <div id="c-topic" class="irc-topic"></div>
+    <div class="irc-body">
+      <div id="c-log" class="irc-log">
+        <pre id="c-banner" class="irc-banner" aria-hidden="true">
+ █▀▀ █ █ █ ▄▀█ █▀█ █▀▄▀█   ▄▀ ▄▀  █ █▀█ █▀▀
+ ▄▄█ ▀▄▀▄▀ █▀█ █▀▄ █ ▀ █  ▀  ▀    █ █▀▄ █▄▄
+ ─────────────────────────────────────────── tailnet only</pre>
+        <button type="button" id="c-older" class="irc-btn irc-older" hidden>[ load older ]</button>
+        <ol id="c-lines" class="irc-lines" role="log" aria-live="polite" aria-label="Messages"></ol>
+      </div>
+      <aside class="irc-windows" aria-labelledby="h-windows">
+        <div class="irc-wtitle">
+          <h2 id="h-windows">windows</h2>
+          <button type="button" id="c-add" class="irc-btn irc-add" aria-label="Create a channel" title="Create a channel (/create name)" hidden>[+]</button>
+        </div>
+        <ul id="c-list" class="irc-list"></ul>
+      </aside>
+    </div>
+    <div class="irc-status" aria-hidden="true">
+      <span>[<span id="s-clock"></span>]</span>
+      <span>[<span id="s-nick"></span>]</span>
+      <span>[<span id="s-win"></span>]</span>
+      <span id="s-act-wrap" hidden>[Act: <span id="s-act"></span>]</span>
+      <span class="irc-grow"></span>
+      <span>[<span id="c-status">connecting</span>]</span>
+    </div>
+    <form id="c-form" class="irc-input">
+      <label id="c-prompt" for="c-text">[#general]</label>
+      <textarea id="c-text" rows="1" maxlength="8000" placeholder="type a message, or /help" autocomplete="off" required></textarea>
+      <button type="submit" class="irc-btn">[send]</button>
+    </form>
+    <p id="c-notice" class="irc-notice" role="status" hidden></p>
+  </div>
+  <dialog id="c-create" class="irc-dialog" aria-labelledby="c-create-title">
+    <form id="c-create-form" method="dialog">
+      <h2 id="c-create-title">-!- create channel</h2>
+      <label for="c-name">name: lowercase letters, digits and -, up to 24</label>
+      <input id="c-name" maxlength="24" autocapitalize="none" spellcheck="false" required>
+      <p id="c-create-error" class="irc-err" hidden></p>
+      <div class="irc-dbtns">
+        <button type="button" id="c-create-cancel" class="irc-btn">[back]</button>
+        <button type="submit" class="irc-btn">[create]</button>
+      </div>
+    </form>
+  </dialog>
+  <dialog id="c-delete" class="irc-dialog" aria-labelledby="c-delete-title">
+    <form id="c-delete-form" method="dialog">
+      <h2 id="c-delete-title">-!- delete channel</h2>
+      <p id="c-delete-what"></p>
+      <p class="irc-dim">Its messages are archived on the server, not erased.</p>
+      <div class="irc-dbtns">
+        <button type="button" id="c-delete-cancel" class="irc-btn">[back]</button>
+        <button type="submit" class="irc-btn irc-danger">[delete]</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+</body>
+</html>

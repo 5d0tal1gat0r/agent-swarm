@@ -1,0 +1,15 @@
+{
+  "managerSeq": 1,
+  "sessionId": "run-T-0001-1-a1b2c3d4",
+  "assignmentId": "agent-T-0001-implementer-a1b2c3d4",
+  "parentId": "manager-core",
+  "manager": "owner-laptop",
+  "taskId": "T-0001",
+  "at": "2026-11-05T10:00:00.000Z",
+  "type": "session.started",
+  "phase": "implement",
+  "summary": "Implementer session started",
+  "data": {
+    "model": "gpt-5.6-luna"
+  }
+}

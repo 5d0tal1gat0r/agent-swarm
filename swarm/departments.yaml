@@ -1,0 +1,73 @@
+# Department ownership for the swarm. One department per path: overlapping
+# globs stop the orchestrator at start-up. Paths not owned by any department
+# go to `platform` and raise alert.unowned_path. Hosts are GitHub logins.
+# Solo setup: every department runs on one machine.
+version: 1
+repo: example-org/agent-coordination
+contracts:
+  - "swarm/protocol/**"
+departments:
+  core:
+    paths: ["swarm/orchestrator/**", "swarm/protocol/**", "swarm/prompts/orchestrator-*.md", "swarm/dashboard/**"]
+    host: owner
+    standby: null
+    agent: claude
+    concurrency: 1
+    maxSubagents: 4
+  runtime:
+    paths:
+      - "swarm/manager/**"
+      - "swarm/agents/**"
+      - "swarm/shared/**"
+      - "swarm/prompts/manager-*.md"
+      - "autopilot/src/**"
+      - "autopilot/bin/**"
+      - "autopilot/test/**"
+      - "autopilot/prompts/**"
+      - "autopilot/sandbox/**"
+      - "autopilot/*.json"
+    host: owner
+    standby: null
+    agent: claude
+    concurrency: 1
+    maxSubagents: 4
+  qa:
+    paths: ["swarm/test/**", "swarm/fixtures/**"]
+    host: owner
+    standby: null
+    agent: claude
+    concurrency: 1
+    maxSubagents: 3
+  platform:
+    paths:
+      - ".github/**"
+      - "scripts/**"
+      - "swarm/deploy/**"
+      - "swarm/scripts/**"
+      - "swarm/sandbox/**"
+      - "swarm/policy.yaml"
+      - "swarm/departments.yaml"
+      - "swarm/package.json"
+      - "swarm/package-lock.json"
+      - ".mcp.json"
+      - ".env.example"
+      - ".gitignore"
+    host: owner
+    standby: null
+    agent: claude
+    concurrency: 1
+    maxSubagents: 3
+  docs:
+    paths:
+      - "docs/**"
+      - "prompts/**"
+      - "*.md"
+      - "swarm/README.md"
+      - "swarm/ARCHITECTURE.md"
+      - "swarm/managers/**"
+      - "autopilot/README.md"
+    host: owner
+    standby: null
+    agent: claude
+    concurrency: 1
+    maxSubagents: 2

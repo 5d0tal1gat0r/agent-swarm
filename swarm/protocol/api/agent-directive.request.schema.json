@@ -1,0 +1,12 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "api/agent-directive.request",
+  "type": "object",
+  "required": ["status"],
+  "additionalProperties": false,
+  "properties": {
+    "status": { "enum": ["delivered", "applied", "failed", "cancelled"] },
+    "result": { "type": "string", "maxLength": 2000 },
+    "replacementSessionId": { "type": "string", "minLength": 1, "maxLength": 160 }
+  }
+}

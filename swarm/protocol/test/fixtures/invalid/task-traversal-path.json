@@ -1,0 +1,1 @@
+{ "_fixture": "paths may not escape the repo", "paths": ["../etc/passwd"] }

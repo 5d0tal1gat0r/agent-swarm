@@ -1,0 +1,5 @@
+{"event":"init","init":{"model":"gemini-3.8-flash-low"}}
+{"event":"tool_start","tool":{"name":"read_file","path":"src/app.mjs"}}
+{"event":"tool_result","tool":{"name":"read_file","status":"ok"}}
+{"event":"step_update","step_update":{"text_delta":"done"}}
+{"event":"result","result":{"status":"SUCCESS","response":"done","usage":{"input_tokens":100,"output_tokens":20,"thinking_tokens":5,"cache_read_tokens":900}}}

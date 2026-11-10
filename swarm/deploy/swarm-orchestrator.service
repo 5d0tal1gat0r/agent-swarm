@@ -1,0 +1,24 @@
+# Swarm orchestrator, user service on the orchestrator machine (ARCHITECTURE 42). Every model call
+# (review, planning) runs here, on the owner's own CLI logins, so usage and input stay with the owner.
+# Env: ~/.config/swarm/orchestrator.env (mode 0600, written by `swarmctl install orchestrator`).
+# The env file sets PATH so the service finds node, claude and gh.
+[Unit]
+Description=Swarm orchestrator (task API, review loop, monitor, dispatcher, dashboard)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/swarm-app/repo/swarm
+EnvironmentFile=%h/.config/swarm/orchestrator.env
+ExecStart=/usr/bin/env node --disable-warning=ExperimentalWarning orchestrator/bin/orchestrator.mjs start --host ${SWARM_HOST} --port ${SWARM_PORT} --review-cmd "claude -p --output-format text" --plan-cmd "claude -p --output-format text"
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=yes
+PrivateTmp=yes
+# Read-only system and home, except the swarm DB and the state the claude and gh CLIs write.
+ProtectSystem=strict
+ReadWritePaths=%h/.swarm -%h/.claude -%h/.claude.json -%h/.cache -%h/.config/gh -%h/.local/state
+
+[Install]
+WantedBy=default.target

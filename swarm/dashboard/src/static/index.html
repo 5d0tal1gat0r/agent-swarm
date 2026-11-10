@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Swarm control room</title>
+<link rel="stylesheet" href="/style.css">
+<script type="module" src="/maint.js"></script>
+<script type="module" src="/app.js"></script>
+</head>
+<body>
+<header class="bar">
+  <span class="mark mono" aria-hidden="true">[sw]</span>
+  <span class="scope">swarm <span class="mut">/ control room</span></span>
+  <a id="admin-link" class="act navlink" href="/admin" hidden>Admin</a>
+  <a class="act navlink" href="/agents">Agents</a>
+  <a class="act navlink" href="/graph">Graph</a>
+  <a class="act navlink" href="/chat">Chat</a>
+  <span id="banner" class="fresh" role="status"></span>
+  <span id="viewer" class="mut"></span>
+  <button type="button" id="notifications" class="act notification-button" aria-label="Notifications" aria-expanded="false" hidden><span aria-hidden="true">◎</span><b id="notification-count" hidden>0</b></button>
+  <button type="button" id="pw-open" class="act" hidden>Password</button>
+  <button type="button" id="logout" class="act" hidden>Sign out</button>
+</header>
+<main>
+  <form id="login" class="panel login" hidden>
+    <h1>Swarm control room</h1>
+    <label for="user">User</label>
+    <input id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit">Sign in</button>
+    <p class="mut">Ask the owner for an account. Sessions stay signed in for up to 7 days, with a 30-day maximum.</p>
+    <p id="login-error" class="down" hidden></p>
+  </form>
+  <form id="pw-form" class="panel login" hidden>
+    <h2>Change your password</h2>
+    <input name="username" autocomplete="username" hidden>
+    <label for="pw-current">Current password</label>
+    <input id="pw-current" type="password" autocomplete="current-password" required>
+    <label for="pw-next">New password (10 characters or more)</label>
+    <input id="pw-next" type="password" autocomplete="new-password" minlength="10" required>
+    <label for="pw-again">New password again</label>
+    <input id="pw-again" type="password" autocomplete="new-password" minlength="10" required>
+    <p class="pw-acts"><button type="submit">Save password</button> <button type="button" id="pw-cancel" class="act">Cancel</button></p>
+    <p id="pw-msg" role="status" hidden></p>
+  </form>
+  <div id="app" hidden>
+    <aside id="notification-panel" class="notification-panel" aria-labelledby="notification-title" hidden>
+      <div class="notification-head"><h2 id="notification-title">Notifications</h2><span><button type="button" id="notification-read" class="act">Mark all read</button> <button type="button" id="notification-close" class="act">Close</button></span></div>
+      <label class="notification-pref"><input type="checkbox" id="pref-task-failed"> Notify me about failed tasks</label>
+      <div id="notification-list" class="notification-list" role="status" aria-live="polite"></div>
+    </aside>
+    <div class="title">
+      <h1>Control room</h1>
+      <p id="finding" class="finding"></p>
+      <p id="service" class="service mono"></p>
+    </div>
+    <section class="panel system-map-panel" id="panel-map" data-panel="map" aria-labelledby="h-topology">
+      <div class="head panel-head">
+        <div class="panel-title-group">
+          <h2 id="h-topology">System map</h2>
+          <span class="mut legend panel-subtitle">dispatch paths · select a department to focus its work</span>
+        </div>
+        <div class="panel-acts">
+          <button type="button" class="act panel-toggle" data-toggle-panel="map" aria-expanded="true" aria-controls="body-map" aria-label="Toggle System map section" title="Show or hide System map"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div id="body-map" class="panel-body system-map-canvas">
+        <details class="system-map-pipeline">
+          <summary id="h-pipeline"><span>Work pipeline</span><span class="pipeline-expand">Expand</span><span class="pipeline-collapse">Collapse</span></summary>
+          <div id="pipeline" aria-describedby="h-pipeline"></div>
+        </details>
+        <div id="topology" aria-describedby="finding"></div>
+      </div>
+    </section>
+    <section class="panel metrics-panel" id="panel-metrics" data-panel="metrics" aria-labelledby="h-metrics">
+      <div class="head panel-head">
+        <div class="panel-title-group">
+          <h2 id="h-metrics">System pulse</h2>
+          <span class="mut panel-subtitle">what needs attention · what is moving · what shipped</span>
+        </div>
+        <div class="panel-acts">
+          <button type="button" class="act panel-toggle" data-toggle-panel="metrics" aria-expanded="true" aria-controls="body-metrics" aria-label="Toggle System pulse section" title="Show or hide System pulse"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div id="body-metrics" class="panel-body">
+        <div id="metrics"></div>
+      </div>
+    </section>
+    <section class="panel" id="panel-tasks" data-panel="tasks" aria-labelledby="h-tasks">
+      <div class="head panel-head">
+        <div class="panel-title-group">
+          <h2 id="h-tasks">Work queue</h2>
+          <span class="mut panel-subtitle">select a task to inspect it and take action</span>
+        </div>
+        <div class="panel-acts">
+          <div class="filters">
+            <label>Status <select id="f-status"><option value="">All</option></select></label>
+            <label>Department <select id="f-department"><option value="">All</option></select></label>
+            <label>Epic <select id="f-epic"><option value="">All</option></select></label>
+          </div>
+          <button type="button" class="act panel-toggle" data-toggle-panel="tasks" aria-expanded="true" aria-controls="body-tasks" aria-label="Toggle Work queue section" title="Show or hide Work queue"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div id="body-tasks" class="panel-body">
+        <div id="tasks" class="scroll"></div>
+        <div id="history"></div>
+      </div>
+    </section>
+    <div class="row pair">
+      <section class="panel" id="panel-epics" data-panel="epics" aria-labelledby="h-epics">
+        <div class="head panel-head">
+          <div class="panel-title-group">
+            <h2 id="h-epics">Epics</h2>
+            <span class="mut panel-subtitle">workstreams and planning state</span>
+          </div>
+          <div class="panel-acts">
+            <button type="button" class="act panel-toggle" data-toggle-panel="epics" aria-expanded="true" aria-controls="body-epics" aria-label="Toggle Epics section" title="Show or hide Epics"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div id="body-epics" class="panel-body">
+          <div id="epics" class="scroll"></div>
+          <div id="plan-result" class="scroll"></div>
+        </div>
+      </section>
+      <section class="panel" id="panel-controls" data-panel="controls" aria-labelledby="h-controls">
+        <div class="head panel-head">
+          <div class="panel-title-group">
+            <h2 id="h-controls">Operator actions</h2>
+            <span class="mut panel-subtitle">change the system deliberately</span>
+          </div>
+          <div class="panel-acts">
+            <span id="action-result" class="mut" role="status"></span>
+            <button type="button" class="act panel-toggle" data-toggle-panel="controls" aria-expanded="true" aria-controls="body-controls" aria-label="Toggle Operator actions section" title="Show or hide Operator actions"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div id="body-controls" class="panel-body">
+          <div id="controls"></div>
+        </div>
+      </section>
+    </div>
+    <div class="row">
+      <section class="panel" id="panel-departments" data-panel="departments" aria-labelledby="h-departments">
+        <div class="head panel-head">
+          <div class="panel-title-group">
+            <h2 id="h-departments">Departments</h2>
+            <span class="mut panel-subtitle">ownership and coverage</span>
+          </div>
+          <div class="panel-acts">
+            <button type="button" class="act panel-toggle" data-toggle-panel="departments" aria-expanded="true" aria-controls="body-departments" aria-label="Toggle Departments section" title="Show or hide Departments"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div id="body-departments" class="panel-body">
+          <div id="departments" class="scroll"></div>
+        </div>
+      </section>
+      <section class="panel" id="panel-managers" data-panel="managers" aria-labelledby="h-managers">
+        <div class="head panel-head">
+          <div class="panel-title-group">
+            <h2 id="h-managers">Managers</h2>
+            <span class="mut panel-subtitle">capacity and active leases</span>
+          </div>
+          <div class="panel-acts">
+            <button type="button" class="act panel-toggle" data-toggle-panel="managers" aria-expanded="true" aria-controls="body-managers" aria-label="Toggle Managers section" title="Show or hide Managers"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+        <div id="body-managers" class="panel-body">
+          <div id="managers" class="scroll"></div>
+        </div>
+      </section>
+    </div>
+    <section class="panel" id="panel-alerts" data-panel="alerts" aria-labelledby="h-alerts">
+      <div class="head panel-head">
+        <div class="panel-title-group">
+          <h2 id="h-alerts">Activity log</h2>
+          <span class="mut panel-subtitle">system signals · newest first</span>
+        </div>
+        <div class="panel-acts">
+          <button type="button" class="act panel-toggle" data-toggle-panel="alerts" aria-expanded="true" aria-controls="body-alerts" aria-label="Toggle Activity log section" title="Show or hide Activity log"><svg class="toggle-icon" viewBox="0 0 16 16" width="12" height="12" aria-hidden="true" focusable="false"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+        </div>
+      </div>
+      <div id="body-alerts" class="panel-body">
+        <div id="alerts" class="scroll"></div>
+      </div>
+    </section>
+  </div>
+  <div id="notification-toast" class="notification-toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="confirm" aria-labelledby="confirm-title">
+    <form id="confirm-form" method="dialog">
+      <h2 id="confirm-title">Confirm action</h2>
+      <p id="confirm-what"></p>
+      <label for="confirm-reason">Reason (required, recorded and posted on the swarm channel)</label>
+      <textarea id="confirm-reason" rows="3" maxlength="300" required></textarea>
+      <div class="btns">
+        <button type="button" id="confirm-cancel" class="secondary">Back</button>
+        <button type="submit" id="confirm-ok" disabled>Confirm</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+</body>
+</html>

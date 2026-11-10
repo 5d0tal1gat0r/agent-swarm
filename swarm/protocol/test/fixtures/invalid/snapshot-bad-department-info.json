@@ -1,0 +1,10 @@
+{
+  "at": "2026-11-02T10:00:00.000Z",
+  "tasks": [],
+  "epics": [],
+  "managers": [],
+  "departments": ["core"],
+  "departmentInfo": [
+    { "id": "core", "agent": "gpt", "paths": ["swarm/orchestrator/**"], "concurrency": 2, "maxSubagents": 3, "host": null }
+  ]
+}

@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "agent-event",
+  "type": "object",
+  "required": ["managerSeq", "sessionId", "assignmentId", "parentId", "manager", "taskId", "at", "type", "phase", "summary", "data"],
+  "additionalProperties": false,
+  "properties": {
+    "managerSeq": { "type": "integer", "minimum": 1 },
+    "sessionId": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "assignmentId": { "type": "string", "minLength": 1, "maxLength": 160 },
+    "parentId": { "type": ["string", "null"], "maxLength": 160 },
+    "manager": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "taskId": { "type": "string", "pattern": "^T-[0-9]{4,}$" },
+    "at": { "$ref": "agent-context#/$defs/timestamp" },
+    "type": {
+      "enum": [
+        "session.started", "phase.changed", "status", "tool.started", "tool.completed",
+        "command.started", "command.completed", "file.read", "file.changed", "test.result",
+        "handoff", "blocker", "tokens", "directive.queued", "directive.applied",
+        "directive.failed", "session.completed", "session.interrupted", "session.failed",
+        "events.dropped"
+      ]
+    },
+    "phase": { "type": ["string", "null"], "maxLength": 80 },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "data": {
+      "type": "object",
+      "maxProperties": 32,
+      "additionalProperties": { "$ref": "#/$defs/detailValue" }
+    }
+  },
+  "$defs": {
+    "detailValue": {
+      "anyOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string", "maxLength": 4096 },
+        { "type": "array", "maxItems": 50, "items": { "anyOf": [{ "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string", "maxLength": 1000 }] } },
+        { "type": "object", "maxProperties": 20, "additionalProperties": { "anyOf": [{ "type": "null" }, { "type": "boolean" }, { "type": "number" }, { "type": "string", "maxLength": 1000 }] } }
+      ]
+    }
+  }
+}
